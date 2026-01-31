@@ -147,7 +147,7 @@ class ComfyLauncher:
             
         else:
             print("\n" + "="*60)
-            print("  VERSION: V.2.2-FIXED | ComfyUI Server Mode")
+            print("  VERSION: V.3.0-PINGGY | ComfyUI Server Mode")
             print("="*60 + "\n")
             
             args = execution.get("args", "") 
@@ -160,13 +160,8 @@ class ComfyLauncher:
             port_match = re.search(r'--port\s+(\d+)', args)
             port = int(port_match.group(1)) if port_match else 8188
 
-            # Step 1: Download Cloudflared binary first
-            print("[1/3] Downloading Cloudflared...")
-            os.system("wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /tmp/cloudflared_bin")
-            os.system("chmod +x /tmp/cloudflared_bin")
-            
-            # Step 2: Start ComfyUI Server in background
-            print(f"[2/3] Starting ComfyUI server on port {port}...")
+            # Step 1: Start ComfyUI Server in background
+            print(f"[1/2] Starting ComfyUI server on port {port}...")
             server_cmd = f"python -u main.py {args}"
             server_proc = subprocess.Popen(
                 server_cmd,
@@ -178,14 +173,12 @@ class ComfyLauncher:
                 bufsize=1
             )
             
-            # Wait for server to start (check for "Starting server" message)
+            # Wait for server to start
             print("Waiting for server to initialize...")
             server_ready = False
-            startup_lines = []
-            for _ in range(120):  # Wait up to 60 seconds for server startup
+            for _ in range(120):
                 line = server_proc.stdout.readline()
                 if line:
-                    startup_lines.append(line)
                     print(line, end="")
                     if "Starting server" in line or "To see the GUI" in line:
                         server_ready = True
@@ -195,48 +188,50 @@ class ComfyLauncher:
             if not server_ready:
                 print("\nWarning: Server may not have started correctly. Continuing anyway...")
             
-            # Step 3: Start Cloudflared Tunnel in background thread
-            print("\n[3/3] Starting Cloudflared tunnel...")
+            # Step 2: Start Pinggy SSH Tunnel (no binary download needed!)
+            print("\n[2/2] Starting Pinggy tunnel (via SSH)...")
             
-            # Use a thread to capture URL without blocking
-            cf_url = [None]  # Mutable container for thread result
+            pinggy_url = [None]
             
-            def capture_cloudflared_url():
+            def start_pinggy_tunnel():
                 try:
+                    # Pinggy uses SSH - works everywhere!
                     tunnel = subprocess.Popen(
-                        ["/tmp/cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                        ["ssh", "-p", "443", "-R0:localhost:" + str(port), 
+                         "-o", "StrictHostKeyChecking=no",
+                         "-o", "ServerAliveInterval=30",
+                         "a.pinggy.io"],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.STDOUT,
-                        text=True
+                        text=True,
+                        stdin=subprocess.DEVNULL
                     )
                     for line in iter(tunnel.stdout.readline, ''):
-                        if "trycloudflare.com" in line:
-                            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                        print(f"[Pinggy] {line}", end="")
+                        # Pinggy outputs URL like: https://xxxxx.a.free.pinggy.link
+                        if "pinggy" in line.lower() and "http" in line.lower():
+                            match = re.search(r"https?://[a-zA-Z0-9.-]+\.pinggy\.[a-zA-Z]+", line)
                             if match:
-                                cf_url[0] = match.group(0)
-                                break
+                                pinggy_url[0] = match.group(0)
                 except Exception as e:
-                    print(f"Cloudflared error: {e}")
+                    print(f"Pinggy error: {e}")
             
-            # Start tunnel thread
-            tunnel_thread = threading.Thread(target=capture_cloudflared_url, daemon=True)
+            # Start tunnel in daemon thread
+            tunnel_thread = threading.Thread(target=start_pinggy_tunnel, daemon=True)
             tunnel_thread.start()
             
-            # Wait for URL with timeout
-            print("Waiting for public URL (timeout: 20 seconds)...")
-            tunnel_thread.join(timeout=20)
+            # Wait briefly for URL
+            print("Waiting for public URL (timeout: 15 seconds)...")
+            time.sleep(15)
             
-            if cf_url[0]:
+            if pinggy_url[0]:
                 print("\n" + "="*60)
-                print(f"  PUBLIC URL: {cf_url[0]}")
+                print(f"  PUBLIC URL: {pinggy_url[0]}")
                 print("="*60 + "\n")
             else:
-                print("\nWarning: Could not capture Cloudflared URL within timeout.")
-                print("The tunnel is running in background. Check the ComfyUI logs for the URL.\n")
+                print("\nNote: URL will appear in the logs above as [Pinggy] output.\n")
 
-
-            # Colab Proxy Fallback (ONLY on actual Colab, skip entirely on Kaggle)
-            # Kaggle has google.colab installed but it doesn't work - causes hangs
+            # Colab Proxy Fallback (only on actual Colab)
             is_kaggle = os.path.exists('/kaggle')
             if not is_kaggle:
                 try:
@@ -246,8 +241,6 @@ class ComfyLauncher:
                 except Exception:
                     pass
 
-
-
             # Continue streaming server output
             print("\n--- ComfyUI Server Logs ---\n")
             try:
@@ -256,7 +249,7 @@ class ComfyLauncher:
             except KeyboardInterrupt:
                 print("\nShutting down...")
                 server_proc.terminate()
-                tunnel_proc.terminate()
+
 
 
 if __name__ == "__main__":
