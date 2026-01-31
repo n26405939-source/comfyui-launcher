@@ -227,15 +227,17 @@ class ComfyLauncher:
                 print("\nWarning: Could not capture Cloudflared URL automatically.")
                 print("The tunnel may still be starting. Look for 'trycloudflare.com' in the logs below.\n")
 
-            # Colab Proxy Fallback (only on Colab, skip on Kaggle)
-            is_colab = os.path.exists('/content')
-            if is_colab:
+            # Colab Proxy Fallback (ONLY on actual Colab, skip entirely on Kaggle)
+            # Kaggle has google.colab installed but it doesn't work - causes hangs
+            is_kaggle = os.path.exists('/kaggle')
+            if not is_kaggle:
                 try:
                     from google.colab.output import eval_js
                     proxy_url = eval_js(f"google.colab.kernel.proxyPort({port})")
                     print(f"[Colab Fallback URL]: {proxy_url}\n")
                 except Exception:
                     pass
+
 
 
             # Continue streaming server output
