@@ -1,0 +1,21 @@
+{
+  "project_name": "Standard ComfyUI Server",
+  "description": "Standard ComfyUI interface with common nodes",
+  "custom_nodes": [
+    "https://github.com/ltdrdata/ComfyUI-Manager"
+  ],
+  "models": [
+    {
+      "type": "checkpoints",
+      "filename": "sd_xl_turbo_1.0_fp16.safetensors",
+      "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors",
+      "dest_path": "models/checkpoints",
+      "method": "aria2c"
+    }
+  ],
+  "execution": {
+    "mode": "server",
+    "comfy_commit": "3c8456223c5f6a41af7d99219b391c8c58acb552",
+    "args": "--listen --enable-cors-header --share"
+  }
+}
