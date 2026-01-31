@@ -134,59 +134,105 @@ class ComfyLauncher:
             self.run_command(f"python -u {script_name}", cwd=self.root_dir)
             
         else:
-            print("\n--- VERSION: V.2.1-NUCLEAR ---")
-            print("Launching ComfyUI Server Mode...")
+            print("\n" + "="*60)
+            print("  VERSION: V.2.2-FIXED | ComfyUI Server Mode")
+            print("="*60 + "\n")
+            
             args = execution.get("args", "") 
             
             # Extract port
             import re
+            import time
+            import threading
+            
             port_match = re.search(r'--port\s+(\d+)', args)
             port = int(port_match.group(1)) if port_match else 8188
 
-            # Robust Cloudflared Setup
-            print("Starting Cloudflared tunnel for public access...")
-            os.system(f"wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared_bin")
-            os.system("chmod +x cloudflared_bin")
+            # Step 1: Download Cloudflared binary first
+            print("[1/3] Downloading Cloudflared...")
+            os.system("wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O /tmp/cloudflared_bin")
+            os.system("chmod +x /tmp/cloudflared_bin")
             
-            import subprocess
-            import time
+            # Step 2: Start ComfyUI Server in background
+            print(f"[2/3] Starting ComfyUI server on port {port}...")
+            server_cmd = f"python -u main.py {args}"
+            server_proc = subprocess.Popen(
+                server_cmd,
+                shell=True,
+                cwd=self.root_dir,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1
+            )
+            
+            # Wait for server to start (check for "Starting server" message)
+            print("Waiting for server to initialize...")
+            server_ready = False
+            startup_lines = []
+            for _ in range(120):  # Wait up to 60 seconds for server startup
+                line = server_proc.stdout.readline()
+                if line:
+                    startup_lines.append(line)
+                    print(line, end="")
+                    if "Starting server" in line or "To see the GUI" in line:
+                        server_ready = True
+                        break
+                time.sleep(0.5)
+            
+            if not server_ready:
+                print("\nWarning: Server may not have started correctly. Continuing anyway...")
+            
+            # Step 3: Start Cloudflared Tunnel
+            print("\n[3/3] Starting Cloudflared tunnel...")
             tunnel_proc = subprocess.Popen(
-                ["./cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                ["/tmp/cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True
             )
             
-            # Increased timeout and better capture for the public URL
-            print("Waiting for Cloudflared URL (this can take 15-20 seconds)...")
+            # Capture the public URL from Cloudflared
+            print("Waiting for public URL (this takes ~10-15 seconds)...")
             cf_url_found = False
-            for _ in range(40): # Wait up to 20 seconds
+            for _ in range(30):  # Wait up to 15 seconds
                 line = tunnel_proc.stdout.readline()
-                if not line: break
+                if not line:
+                    time.sleep(0.5)
+                    continue
                 
                 if "trycloudflare.com" in line:
                     match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
                     if match:
-                        print(f"\n" + "="*50)
-                        print(f"  PUBLIC LINK: {match.group(0)}")
-                        print("="*50 + "\n")
+                        print("\n" + "="*60)
+                        print(f"  PUBLIC URL: {match.group(0)}")
+                        print("="*60 + "\n")
                         cf_url_found = True
                         break
                 time.sleep(0.5)
 
             if not cf_url_found:
-                print("Warning: Cloudflared URL not captured yet. Check logs below for a 'trycloudflare.com' link.")
+                print("\nWarning: Could not capture Cloudflared URL automatically.")
+                print("The tunnel may still be starting. Look for 'trycloudflare.com' in the logs below.\n")
 
-            # Colab Proxy (Localhost Fallback)
+            # Colab Proxy Fallback
             try:
                 from google.colab.output import eval_js
                 proxy_url = eval_js(f"google.colab.kernel.proxyPort({port})")
-                print(f"[Colab Proxy Fallback]: {proxy_url}\n")
+                print(f"[Colab Fallback URL]: {proxy_url}\n")
             except Exception:
                 pass
 
-            # Final execution: Standard ComfyUI Server
-            self.run_command(f"python -u main.py {args}", cwd=self.root_dir)
+            # Continue streaming server output
+            print("\n--- ComfyUI Server Logs ---\n")
+            try:
+                for line in server_proc.stdout:
+                    print(line, end="")
+            except KeyboardInterrupt:
+                print("\nShutting down...")
+                server_proc.terminate()
+                tunnel_proc.terminate()
+
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
