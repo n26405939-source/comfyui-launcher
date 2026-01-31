@@ -16,6 +16,6 @@
   "execution": {
     "mode": "server",
     "comfy_commit": "3c8456223c5f6a41af7d99219b391c8c58acb552",
-    "args": "--listen --enable-cors-header --share"
+    "args": "--listen --enable-cors-header"
   }
 }

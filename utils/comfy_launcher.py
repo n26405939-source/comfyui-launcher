@@ -136,6 +136,21 @@ class ComfyLauncher:
         else:
             print("Launching ComfyUI Server...")
             args = execution.get("args", "") 
+            
+            # Print Colab Proxy URL if applicable
+            try:
+                from google.colab.output import eval_js
+                # Extract port from args if present, otherwise default to 8188
+                import re
+                port_match = re.search(r'--port\s+(\d+)', args)
+                port = int(port_match.group(1)) if port_match else 8188
+                
+                proxy_url = eval_js(f"google.colab.kernel.proxyPort({port})")
+                print(f"\n[Colab detected]")
+                print(f"Server should be accessible at: {proxy_url}\n")
+            except Exception:
+                pass
+
             # Use -u here too
             self.run_command(f"python -u main.py {args}", cwd=self.root_dir)
 
