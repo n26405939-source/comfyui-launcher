@@ -137,16 +137,42 @@ class ComfyLauncher:
             print("Launching ComfyUI Server...")
             args = execution.get("args", "") 
             
-            # Print Colab Proxy URL if applicable
+            # Extract port from args if present, otherwise default to 8188
+            import re
+            port_match = re.search(r'--port\s+(\d+)', args)
+            port = int(port_match.group(1)) if port_match else 8188
+
+            # Try to start Cloudflared for a public URL
+            print("Starting Cloudflared tunnel for public access...")
+            os.system(f"wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared")
+            os.system("chmod +x cloudflared")
+            
+            # Start tunnel in background and capture output for URL
+            import subprocess
+            import time
+            tunnel_proc = subprocess.Popen(
+                ["./cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True
+            )
+            
+            print("Waiting for Cloudflared URL...")
+            for _ in range(20): # Wait up to 10 seconds
+                line = tunnel_proc.stdout.readline()
+                if "trycloudflare.com" in line:
+                    cf_url = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                    if cf_url:
+                        print(f"\n[Cloudflared URL]")
+                        print(f"Public Link: {cf_url.group(0)}\n")
+                        break
+                time.sleep(0.5)
+
+            # Print Colab Proxy URL as fallback
             try:
                 from google.colab.output import eval_js
-                # Extract port from args if present, otherwise default to 8188
-                import re
-                port_match = re.search(r'--port\s+(\d+)', args)
-                port = int(port_match.group(1)) if port_match else 8188
-                
                 proxy_url = eval_js(f"google.colab.kernel.proxyPort({port})")
-                print(f"\n[Colab detected]")
+                print(f"[Colab Proxy fallback]")
                 print(f"Server should be accessible at: {proxy_url}\n")
             except Exception:
                 pass
