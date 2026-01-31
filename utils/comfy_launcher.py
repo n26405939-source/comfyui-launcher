@@ -16,7 +16,22 @@ class ComfyLauncher:
 
     def run_command(self, command, cwd=None):
         print(f"Executing: {command}")
-        subprocess.run(command, shell=True, check=True, cwd=cwd)
+        process = subprocess.Popen(
+            command,
+            shell=True,
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1
+        )
+        
+        for line in process.stdout:
+            print(line, end="")
+        
+        process.wait()
+        if process.returncode != 0:
+            raise subprocess.CalledProcessError(process.returncode, command)
 
     def install_comfy(self):
         if not os.path.exists(self.root_dir):
@@ -81,14 +96,13 @@ class ComfyLauncher:
 
     def install_requirements(self):
         req_file = self.config.get("execution", {}).get("requirements", "requirements.txt")
-        # Check if it's a file in the project config directory or ComfyUI root
-        # If the user provided a separate requirements file path in the config dir
-        pass 
         # For now, standard ComfyUI requirements
         self.run_command(f"pip install -r requirements.txt", cwd=self.root_dir)
         
-        # If there are node-specific requirements, they usually auto-install or need manual handling
-        # Comfy Manager handles this, but here we might need to handle it if specified.
+        # Ensure gradio is installed for script-based UI
+        if self.config.get("execution", {}).get("mode") == "script":
+            print("Ensuring gradio is installed...")
+            self.run_command("pip install gradio")
 
     def launch(self):
         self.install_comfy()

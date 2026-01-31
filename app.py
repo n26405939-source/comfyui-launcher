@@ -17,10 +17,15 @@ KSampler = NODE_CLASS_MAPPINGS["KSampler"]()
 VAEDecode = NODE_CLASS_MAPPINGS["VAEDecode"]()
 EmptyLatentImage = NODE_CLASS_MAPPINGS["EmptyLatentImage"]()
 
+print("Loading models into memory...")
 with torch.inference_mode():
+    print("Loading UNET...")
     unet = UNETLoader.load_unet("z-image-turbo-fp8-e4m3fn.safetensors", "fp8_e4m3fn_fast")[0]
+    print("Loading CLIP...")
     clip = CLIPLoader.load_clip("qwen_3_4b.safetensors", type="lumina2")[0]
+    print("Loading VAE...")
     vae = VAELoader.load_vae("ae.safetensors")[0]
+print("Models loaded successfully.")
 
 save_dir="./results"
 os.makedirs(save_dir, exist_ok=True)
