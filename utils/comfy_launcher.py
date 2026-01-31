@@ -195,37 +195,45 @@ class ComfyLauncher:
             if not server_ready:
                 print("\nWarning: Server may not have started correctly. Continuing anyway...")
             
-            # Step 3: Start Cloudflared Tunnel
+            # Step 3: Start Cloudflared Tunnel in background thread
             print("\n[3/3] Starting Cloudflared tunnel...")
-            tunnel_proc = subprocess.Popen(
-                ["/tmp/cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True
-            )
             
-            # Capture the public URL from Cloudflared
-            print("Waiting for public URL (this takes ~10-15 seconds)...")
-            cf_url_found = False
-            for _ in range(30):  # Wait up to 15 seconds
-                line = tunnel_proc.stdout.readline()
-                if not line:
-                    time.sleep(0.5)
-                    continue
-                
-                if "trycloudflare.com" in line:
-                    match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-                    if match:
-                        print("\n" + "="*60)
-                        print(f"  PUBLIC URL: {match.group(0)}")
-                        print("="*60 + "\n")
-                        cf_url_found = True
-                        break
-                time.sleep(0.5)
+            # Use a thread to capture URL without blocking
+            cf_url = [None]  # Mutable container for thread result
+            
+            def capture_cloudflared_url():
+                try:
+                    tunnel = subprocess.Popen(
+                        ["/tmp/cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True
+                    )
+                    for line in iter(tunnel.stdout.readline, ''):
+                        if "trycloudflare.com" in line:
+                            match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                            if match:
+                                cf_url[0] = match.group(0)
+                                break
+                except Exception as e:
+                    print(f"Cloudflared error: {e}")
+            
+            # Start tunnel thread
+            tunnel_thread = threading.Thread(target=capture_cloudflared_url, daemon=True)
+            tunnel_thread.start()
+            
+            # Wait for URL with timeout
+            print("Waiting for public URL (timeout: 20 seconds)...")
+            tunnel_thread.join(timeout=20)
+            
+            if cf_url[0]:
+                print("\n" + "="*60)
+                print(f"  PUBLIC URL: {cf_url[0]}")
+                print("="*60 + "\n")
+            else:
+                print("\nWarning: Could not capture Cloudflared URL within timeout.")
+                print("The tunnel is running in background. Check the ComfyUI logs for the URL.\n")
 
-            if not cf_url_found:
-                print("\nWarning: Could not capture Cloudflared URL automatically.")
-                print("The tunnel may still be starting. Look for 'trycloudflare.com' in the logs below.\n")
 
             # Colab Proxy Fallback (ONLY on actual Colab, skip entirely on Kaggle)
             # Kaggle has google.colab installed but it doesn't work - causes hangs
