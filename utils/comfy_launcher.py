@@ -134,50 +134,58 @@ class ComfyLauncher:
             self.run_command(f"python -u {script_name}", cwd=self.root_dir)
             
         else:
-            print("Launching ComfyUI Server...")
+            print("\n--- VERSION: V.2.1-NUCLEAR ---")
+            print("Launching ComfyUI Server Mode...")
             args = execution.get("args", "") 
             
-            # Extract port from args if present, otherwise default to 8188
+            # Extract port
             import re
             port_match = re.search(r'--port\s+(\d+)', args)
             port = int(port_match.group(1)) if port_match else 8188
 
-            # Try to start Cloudflared for a public URL
+            # Robust Cloudflared Setup
             print("Starting Cloudflared tunnel for public access...")
-            os.system(f"wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared")
-            os.system("chmod +x cloudflared")
+            os.system(f"wget -q -nc https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared_bin")
+            os.system("chmod +x cloudflared_bin")
             
-            # Start tunnel in background and capture output for URL
             import subprocess
             import time
             tunnel_proc = subprocess.Popen(
-                ["./cloudflared", "tunnel", "--url", f"http://127.0.0.1:{port}"],
+                ["./cloudflared_bin", "tunnel", "--url", f"http://127.0.0.1:{port}"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True
             )
             
-            print("Waiting for Cloudflared URL...")
-            for _ in range(20): # Wait up to 10 seconds
+            # Increased timeout and better capture for the public URL
+            print("Waiting for Cloudflared URL (this can take 15-20 seconds)...")
+            cf_url_found = False
+            for _ in range(40): # Wait up to 20 seconds
                 line = tunnel_proc.stdout.readline()
+                if not line: break
+                
                 if "trycloudflare.com" in line:
-                    cf_url = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
-                    if cf_url:
-                        print(f"\n[Cloudflared URL]")
-                        print(f"Public Link: {cf_url.group(0)}\n")
+                    match = re.search(r"https://[a-zA-Z0-9-]+\.trycloudflare\.com", line)
+                    if match:
+                        print(f"\n" + "="*50)
+                        print(f"  PUBLIC LINK: {match.group(0)}")
+                        print("="*50 + "\n")
+                        cf_url_found = True
                         break
                 time.sleep(0.5)
 
-            # Print Colab Proxy URL as fallback
+            if not cf_url_found:
+                print("Warning: Cloudflared URL not captured yet. Check logs below for a 'trycloudflare.com' link.")
+
+            # Colab Proxy (Localhost Fallback)
             try:
                 from google.colab.output import eval_js
                 proxy_url = eval_js(f"google.colab.kernel.proxyPort({port})")
-                print(f"[Colab Proxy fallback]")
-                print(f"Server should be accessible at: {proxy_url}\n")
+                print(f"[Colab Proxy Fallback]: {proxy_url}\n")
             except Exception:
                 pass
 
-            # Use -u here too
+            # Final execution: Standard ComfyUI Server
             self.run_command(f"python -u main.py {args}", cwd=self.root_dir)
 
 if __name__ == "__main__":
