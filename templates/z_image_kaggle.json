@@ -1,0 +1,36 @@
+{
+    "project_name": "Z-Image-Turbo-Kaggle",
+    "description": "Z-Image Turbo on Kaggle - Models stored in /tmp for ephemeral usage",
+    "custom_nodes": [
+        "https://github.com/ltdrdata/ComfyUI-Manager"
+    ],
+    "models": [
+        {
+            "type": "clip",
+            "filename": "qwen_3_4b.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+            "dest_path": "/tmp/comfy_models/clip",
+            "method": "aria2c"
+        },
+        {
+            "type": "vae",
+            "filename": "ae.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+            "dest_path": "/tmp/comfy_models/vae",
+            "method": "aria2c"
+        },
+        {
+            "type": "diffusion_models",
+            "filename": "z_image_turbo_bf16.safetensors",
+            "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/diffusion_models/z_image_turbo_bf16.safetensors",
+            "dest_path": "/tmp/comfy_models/diffusion_models",
+            "method": "aria2c"
+        }
+    ],
+    "execution": {
+        "mode": "server",
+        "comfy_commit": "3c8456223c5f6a41af7d99219b391c8c58acb552",
+        "args": "--listen --enable-cors-header",
+        "extra_model_paths": "/tmp/comfy_models"
+    }
+}

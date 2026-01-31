@@ -58,11 +58,8 @@ class ComfyLauncher:
                 print(f"Custom Node {repo_name} already exists.")
 
     def download_models(self):
-        # Install aria2 if needed (colab specific usually, but good to have check)
-        # We assume apt install aria2 is done in notebook or here if permissible.
-        # For simplicity, we just run the command assuming it's available or use wget fallback?
-        # User's notebook uses aria2c, so we stick to that.
-        self.run_command("apt -y install -qq aria2 || true") # Attempt install, ignore fail if not root/apt
+        # Install aria2 if needed
+        self.run_command("apt -y install -qq aria2 || true")
 
         models = self.config.get("models", [])
         for model in models:
@@ -71,8 +68,11 @@ class ComfyLauncher:
             dest_path = model.get("dest_path")
             method = model.get("method", "aria2c")
             
-            # Allow relative paths relative to ComfyUI root
-            if not dest_path.startswith("/"):
+            # Check if this is an external path (absolute path like /tmp)
+            is_external = dest_path.startswith("/")
+            
+            # For relative paths, make them relative to ComfyUI root
+            if not is_external:
                 dest_path = os.path.join(self.root_dir, dest_path)
             
             os.makedirs(dest_path, exist_ok=True)
@@ -80,19 +80,31 @@ class ComfyLauncher:
             
             if os.path.exists(full_path):
                 print(f"Model {filename} already exists at {full_path}")
-                continue
+            else:
+                print(f"Downloading {filename}...")
+                if method == "aria2c":
+                    cmd = f"aria2c --console-log-level=error -c -x 16 -s 16 -k 1M '{url}' -d '{dest_path}' -o '{filename}'"
+                    self.run_command(cmd)
+                elif method == "symlink":
+                    source_path = model.get("source_path")
+                    if source_path and os.path.exists(source_path):
+                        self.run_command(f"ln -s '{source_path}' '{full_path}'")
+                    else:
+                        print(f"Error: Source path for symlink not found: {source_path}")
             
-            print(f"Downloading {filename}...")
-            if method == "aria2c":
-                cmd = f"aria2c --console-log-level=error -c -x 16 -s 16 -k 1M '{url}' -d '{dest_path}' -o '{filename}'"
-                self.run_command(cmd)
-            elif method == "symlink":
-                # Assumes url is a local file path in this case, or source_path field
-                source_path = model.get("source_path") # Custom field for symlinks
-                if source_path and os.path.exists(source_path):
-                    self.run_command(f"ln -s '{source_path}' '{full_path}'")
-                else:
-                    print(f"Error: Source path for symlink not found: {source_path}")
+            # Create symlink inside ComfyUI for external paths
+            if is_external and os.path.exists(full_path):
+                # Determine the ComfyUI model subdirectory based on dest_path
+                # e.g., /tmp/comfy_models/clip -> models/clip
+                subdir = os.path.basename(dest_path)  # "clip", "vae", "diffusion_models"
+                comfy_model_dir = os.path.join(self.root_dir, "models", subdir)
+                os.makedirs(comfy_model_dir, exist_ok=True)
+                
+                symlink_path = os.path.join(comfy_model_dir, filename)
+                if not os.path.exists(symlink_path):
+                    print(f"Creating symlink: {symlink_path} -> {full_path}")
+                    os.symlink(full_path, symlink_path)
+
 
     def install_requirements(self):
         req_file = self.config.get("execution", {}).get("requirements", "requirements.txt")
