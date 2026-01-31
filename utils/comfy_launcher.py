@@ -116,12 +116,14 @@ class ComfyLauncher:
                  shutil.copy(script_path, os.path.join(self.root_dir, script_name))
             
             print(f"Launching script: {script_path}")
-            self.run_command(f"python {script_name}", cwd=self.root_dir)
+            # Use -u for unbuffered output so logs appear immediately in Colab
+            self.run_command(f"python -u {script_name}", cwd=self.root_dir)
             
         else:
             print("Launching ComfyUI Server...")
-            args = execution.get("args", "") # e.g. "--listen --enable-cors-header"
-            self.run_command(f"python main.py {args}", cwd=self.root_dir)
+            args = execution.get("args", "") 
+            # Use -u here too
+            self.run_command(f"python -u main.py {args}", cwd=self.root_dir)
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
