@@ -1,0 +1,20 @@
+{
+    "project_name": "Standard SDXL Workflow",
+    "description": "Example using standard ComfyUI server mode",
+    "custom_nodes": [
+        "https://github.com/ltdrdata/ComfyUI-Manager"
+    ],
+    "models": [
+        {
+            "type": "checkpoints",
+            "filename": "sd_xl_turbo_1.0_fp16.safetensors",
+            "url": "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors",
+            "dest_path": "models/checkpoints",
+            "method": "aria2c"
+        }
+    ],
+    "execution": {
+        "mode": "server",
+        "args": "--listen --enable-cors-header"
+    }
+}

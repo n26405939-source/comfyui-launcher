@@ -1,0 +1,35 @@
+{
+  "project_name": "Z-Image-Turbo-Modular",
+  "description": "Port of Z-Image-Turbo to Modular Launcher",
+  "custom_nodes": [],
+  "models": [
+    {
+      "type": "checkpoints",
+      "filename": "z-image-turbo-fp8-e4m3fn.safetensors",
+      "url": "https://huggingface.co/T5B/Z-Image-Turbo-FP8/resolve/main/z-image-turbo-fp8-e4m3fn.safetensors",
+      "dest_path": "models/diffusion_models",
+      "method": "aria2c"
+    },
+    {
+      "type": "clip",
+      "filename": "qwen_3_4b.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors",
+      "dest_path": "models/clip",
+      "method": "aria2c"
+    },
+    {
+      "type": "vae",
+      "filename": "ae.safetensors",
+      "url": "https://huggingface.co/Comfy-Org/z_image_turbo/resolve/main/split_files/vae/ae.safetensors",
+      "dest_path": "models/vae",
+      "method": "aria2c"
+    }
+  ],
+  "execution": {
+    "mode": "script",
+    "script_path": "app.py",
+    "requirements": "requirements.txt",
+    "comfy_commit": "3c8456223c5f6a41af7d99219b391c8c58acb552",
+    "args": ""
+  }
+}
